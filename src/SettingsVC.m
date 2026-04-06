@@ -289,19 +289,19 @@ extern NSString *lcAppUrlScheme;
 - (NSArray*)getJITEnablerOptions {
 	NSString* tsPath = [NSString stringWithFormat:@"%@/../_TrollStore", [NSBundle mainBundle].bundlePath];
 	if (NSClassFromString(@"LCSharedUtils")) {
-		return @[ @"", @"", @"", @"", @"", @"", @"jit.jit-enabler.livecontainer".loc ];
+		return @[ @"", @"", @"", @"", @"", @"", @"jit.jit-enabler.livecontainer".loc, @"jit.jit-enabler.custom".loc ];
 	}
 	if (!access(tsPath.UTF8String, F_OK)) {
 		return @[
 			@"jit.jit-enabler.default".loc, @"jit.jit-enabler.trollstore".loc, @"jit.jit-enabler.stikjit".loc, @"jit.jit-enabler.jitstreamereb".loc, @"jit.jit-enabler.sidejit".loc,
-			@"jit.jit-enabler.sidestore".loc, @""
+			@"jit.jit-enabler.sidestore".loc, @"", @"jit.jit-enabler.custom".loc
 		];
 	} else if (@available(iOS 26.0, *)) {
-		return @[@"jit.jit-enabler.default".loc, @"", @"jit.jit-enabler.stikjit".loc, @"", @"", @"", @""];
+		return @[@"jit.jit-enabler.default".loc, @"", @"jit.jit-enabler.stikjit".loc, @"", @"", @"", @"", @"jit.jit-enabler.custom".loc];
 	} else {
 		return @[
 			@"jit.jit-enabler.default".loc, @"", @"jit.jit-enabler.stikjit".loc, @"jit.jit-enabler.jitstreamereb".loc, @"jit.jit-enabler.sidejit".loc,
-			@"jit.jit-enabler.sidestore".loc, @""
+			@"jit.jit-enabler.sidestore".loc, @"", @"jit.jit-enabler.custom".loc
 		];
 	}
 }
@@ -516,7 +516,7 @@ extern NSString *lcAppUrlScheme;
 			return ![Utils isSandboxed] || [[Utils getPrefs] integerForKey:@"ENTERPRISE_MODE"];
 		} visible:nil prefsKey:nil switchTag:0 action:^{
 			UIAlertController* alert = [UIAlertController alertControllerWithTitle:@"Aspect Ratio".loc message:nil preferredStyle:[UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad ? UIAlertControllerStyleAlert : UIAlertControllerStyleActionSheet];
-			NSArray* defaultAspectOptions = @[ @"Device Native".loc, @"16:9", @"16:10", @"4:3", @"1:1", @"Custom".loc ];
+			NSArray* defaultAspectOptions = @[ @"Device Native".loc, @"16:9", @"16:10", @"4:3", @"1:1", @"jit.jit-enabler.custom".loc ];
 			for (NSInteger i = 0; i < defaultAspectOptions.count; i++) {
 				[alert addAction:[UIAlertAction actionWithTitle:defaultAspectOptions[i] style:UIAlertActionStyleDefault handler:^(UIAlertAction* _Nonnull action) {
 					NSInteger aspectX = 0;
@@ -628,7 +628,7 @@ extern NSString *lcAppUrlScheme;
 		}],
 		[Setting create:@"jit.jit-server".loc type:SettingTypeCustom disabled:nil visible:^BOOL() {
 			NSInteger val = [[Utils getPrefs] integerForKey:@"JIT_ENABLER"];
-			return val == 4 || val == 3;
+			return val == 4 || val == 3 || val == 7;
 		} prefsKey:nil switchTag:0 action:nil custom:^(UITableViewCell *cell){
 			UITextField* textField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 200, 30)];
 			textField.textAlignment = NSTextAlignmentRight;
@@ -664,6 +664,13 @@ extern NSString *lcAppUrlScheme;
 		[Setting create:@"jitless.enterprise".loc type:SettingTypeToggle disabled:nil visible:^BOOL() {
 			return ![Utils isDevCert] && [Utils isSandboxed];
 		} prefsKey:@"ENTERPRISE_MODE" switchTag:16 action:nil custom:nil],
+		[Setting create:@"Launch without patching".loc type:SettingTypeButton disabled:^BOOL() {
+			return ![[Utils getPrefs] boolForKey:@"DEVELOPER_MODE"];
+		} visible:^BOOL() {
+			return [[Utils getPrefs] boolForKey:@"ENTERPRISE_MODE"];
+		} prefsKey:nil switchTag:0 action:^{
+			[_root launchHelper2:NO patchCheck:NO];
+		} custom:nil],
 		[Setting create:@"Force Reset Patching".loc type:SettingTypeButton disabled:nil visible:^BOOL() {
 			return [[Utils getPrefs] boolForKey:@"ENTERPRISE_MODE"];
 		} prefsKey:nil switchTag:0 action:^{
@@ -1017,11 +1024,6 @@ extern NSString *lcAppUrlScheme;
 		[Setting create:@"Force TXM".loc.loc type:SettingTypeToggle disabled:nil visible:nil prefsKey:@"FORCE_TXM" switchTag:21 action:nil custom:nil],
 		[Setting create:@"Force ANGLEGLKit".loc.loc type:SettingTypeToggle disabled:nil visible:nil prefsKey:@"FORCE_ANGLE" switchTag:23 action:nil custom:nil],
 		[Setting create:@"Change .ipa loc to Docs".loc.loc type:SettingTypeToggle disabled:nil visible:nil prefsKey:@"HELPER_IPA_DOCS" switchTag:26 action:nil custom:nil],
-        [Setting create:@"Launch without patching".loc type:SettingTypeButton disabled:nil visible:^BOOL() {
-			return [[Utils getPrefs] boolForKey:@"ENTERPRISE_MODE"];
-		} prefsKey:nil switchTag:0 action:^{
-			[_root launchHelper2:NO patchCheck:NO];
-		} custom:nil],
 		[Setting simpleCreate:@"developer.testbundleaccess".loc type:SettingTypeButton action:^{
 			// Test GD Bundle Access (testbundleaccess) why do i always use it for testing? its quicker! Test Bundle Access
 			[Utils showNotice:self title:[Utils getGDDocPath]];
@@ -1078,7 +1080,7 @@ extern NSString *lcAppUrlScheme;
 				withHandlerAddress:0x8c4000
 				force:YES
 				withSafeMode:NO
-				withEntitlements:YES completionHandler:^(BOOL success, NSString* error) {
+				withEntitlements:NO completionHandler:^(BOOL success, NSString* error) {
 					dispatch_async(dispatch_get_main_queue(), ^{
 						if (success) {
 							[Utils showNotice:self title:@"Patched!"];
@@ -1105,6 +1107,16 @@ extern NSString *lcAppUrlScheme;
 				[[Utils getPrefs] setObject:@"NO" forKey:@"PATCH_CHECKSUM"];
 				[Utils showNotice:self title:@"Original Binary restored!"];
 			}
+		} custom:nil],
+		[Setting simpleCreate:@"Export Binary".loc type:SettingTypeButton action:^{
+			UIActivityViewController* activityViewController = [[UIActivityViewController alloc] initWithActivityItems:@[ [bundlePath URLByAppendingPathComponent:@"GeometryJump"] ] applicationActivities:nil];
+			// not sure if this is even necessary because ive never seen anyone complain about app logs
+			if ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+				activityViewController.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMidY(self.view.bounds), 0, 0);
+				activityViewController.popoverPresentationController.permittedArrowDirections = 0;
+			}
+			activityViewController.popoverPresentationController.sourceView = self.view;
+			[self presentViewController:activityViewController animated:YES completion:nil];
 		} custom:nil],
 		[Setting simpleCreate:@"Clear App Logs".loc type:SettingTypeButton action:^{
 			// Clear App Log
